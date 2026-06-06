@@ -72,7 +72,7 @@
     <div class="field" style="margin-top:10px;"><label>Passord</label><input type="password" id="loginPassword"></div>
     <div style="display:flex;gap:10px;margin-top:14px;"><button id="loginBtn" style="flex:1;">Logg inn</button></div>
     <div id="loginMessage" class="small-text" style="margin-top:10px;"></div>
-    <div class="login-hint"><strong>Demo-innlogging:</strong><br>Admin: <code>admin</code> / <code>admin123</code><br>Bruker: <code>ansatt1</code> / <code>1234</code><br><span class="small-text">GitHub + Firebase live-versjon: fyll inn <code>window.FIREBASE_CONFIG</code> før publisering.</span></div>
+    <div class="login-hint"><strong>Demo-innlogging:</strong><br>Admin: <code>admin</code> / <code>admin123</code><br>Bruker: <code>ansatt1</code> / <code>1234</code><br><span class="small-text">Firebase-konfigurasjon er lagt inn. Hvis live-data ikke virker, sjekk at Anonymous Auth og Realtime Database-regler er aktivert i Firebase.</span></div>
   </div>
 </div>
 
@@ -116,7 +116,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
-
 <script>
 window.FIREBASE_CONFIG = {
   apiKey: "AIzaSyAUMVAtOE9NKTT5cGRZYPs9UT_9gAMOQTY",
