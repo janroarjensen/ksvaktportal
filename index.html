@@ -116,14 +116,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
-<script>
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {
+<script>
+window.FIREBASE_CONFIG = {
   apiKey: "AIzaSyAUMVAtOE9NKTT5cGRZYPs9UT_9gAMOQTY",
   authDomain: "vaktliste-ks.firebaseapp.com",
   databaseURL: "https://vaktliste-ks-default-rtdb.europe-west1.firebasedatabase.app",
@@ -132,9 +127,6 @@ window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {
   messagingSenderId: "121852530491",
   appId: "1:121852530491:web:113543759e138cffa6711e"
 };
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
 </script>
 <script>
 const STORAGE_KEY='kundesenter_vaktliste_v42';
