@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Vaktliste – Live</title>
+<title>Vaktliste – Kundesenter GitHub + Firebase Live</title>
 <style>
  :root {
   --bg:#0f172a; --card:#111827; --line:#334155; --text:#e5e7eb; --muted:#94a3b8;
@@ -72,7 +72,7 @@
     <div class="field" style="margin-top:10px;"><label>Passord</label><input type="password" id="loginPassword"></div>
     <div style="display:flex;gap:10px;margin-top:14px;"><button id="loginBtn" style="flex:1;">Logg inn</button></div>
     <div id="loginMessage" class="small-text" style="margin-top:10px;"></div>
-    <div class="login-hint"><strong>Demo-innlogging:</strong><br>Admin: <code>admin</code> / <code>admin123</code><br>Bruker: <code>ansatt1</code> / <code>1234</code><br><span class="small-text">Firebase-konfigurasjon er lagt inn. Hvis live-data ikke virker, sjekk Anonymous Auth og Realtime Database-regler i Firebase.</span></div>
+    <div class="login-hint"><strong>Demo-innlogging:</strong><br>Admin: <code>admin</code> / <code>admin123</code><br>Bruker: <code>ansatt1</code> / <code>1234</code><br><span class="small-text">Firebase-konfigurasjon er lagt inn. Live-status vises når Firebase Auth og Database er klare.</span></div>
   </div>
 </div>
 
@@ -189,7 +189,74 @@ let liveStatusText='Live: ikke koblet';
 function updateLiveStatus(text){liveStatusText=text;const role=document.getElementById('currentRole');if(role&&getCurrentUser())role.title=text;}
 function queueFirebaseSave(){if(!firebaseReady||!firebaseHasLoaded||!firebaseDb)return;clearTimeout(firebaseSaveTimer);firebaseSaveTimer=setTimeout(()=>{firebaseDb.ref(FIREBASE_STATE_PATH).set(JSON.parse(JSON.stringify(data))).catch(err=>console.error('Firebase save failed',err))},180)}
 function saveData(show){ensureDataShape();localStorage.setItem(STORAGE_KEY,JSON.stringify(data));queueFirebaseSave();if(show){const btn=document.getElementById('saveBtn');if(btn){const org=btn.textContent;btn.textContent='Lagret ✓';setTimeout(()=>btn.textContent=org,1200)}}}
-async function initFirebaseLive(){try{const cfg=window.FIREBASE_CONFIG||{};if(!cfg.apiKey||cfg.apiKey==='LIM_INN_API_KEY'||!cfg.databaseURL||cfg.databaseURL==='LIM_INN_DATABASE_URL'){updateLiveStatus('Live: mangler Firebase-konfigurasjon');return}if(!window.firebase){updateLiveStatus('Live: Firebase SDK ikke lastet');return}firebaseApp=window.firebase.apps&&window.firebase.apps.length?window.firebase.app():window.firebase.initializeApp(cfg);firebaseAuth=window.firebase.auth();firebaseDb=window.firebase.database();if(!firebaseAuth.currentUser){await firebaseAuth.signInAnonymously()}firebaseUid=firebaseAuth.currentUser?firebaseAuth.currentUser.uid:'';firebaseReady=true;updateLiveStatus('Live: kobler til');const connectedRef=firebaseDb.ref('.info/connected');connectedRef.on('value',snap=>{if(snap.val()===true&&firebaseUid){firebaseDb.ref(FIREBASE_PRESENCE_PATH+'/'+firebaseUid).onDisconnect().remove();firebaseDb.ref(FIREBASE_PRESENCE_PATH+'/'+firebaseUid).set({connectedAt:new Date().toISOString()});updateLiveStatus('Live: tilkoblet')}else{updateLiveStatus('Live: frakoblet')}});firebaseDb.ref(FIREBASE_STATE_PATH).on('value',snap=>{const remote=snap.val();if(remote&&typeof remote==='object'){data=remote;ensureDataShape();localStorage.setItem(STORAGE_KEY,JSON.stringify(data));firebaseHasLoaded=true;render()}else{firebaseHasLoaded=true;saveData(false);render()}})}catch(err){console.error(err);updateLiveStatus('Live: feil ved tilkobling')}}
+async function ensureFirebaseAnonymousUser(){
+  if(firebaseAuth.currentUser) return firebaseAuth.currentUser;
+  return new Promise((resolve,reject)=>{
+    let settled=false;
+    const finish=(fn,val)=>{if(settled)return;settled=true;try{unsubscribe()}catch{};clearTimeout(timeoutId);fn(val)};
+    const unsubscribe=firebaseAuth.onAuthStateChanged(
+      user=>{if(user)finish(resolve,user)},
+      err=>finish(reject,err)
+    );
+    firebaseAuth.signInAnonymously().catch(err=>finish(reject,err));
+    const timeoutId=setTimeout(()=>finish(reject,new Error('Timeout ved anonym Firebase-innlogging')),10000);
+  });
+}
+async function initFirebaseLive(){
+  try{
+    const cfg=window.FIREBASE_CONFIG||{};
+    if(!cfg.apiKey||cfg.apiKey==='LIM_INN_API_KEY'||!cfg.databaseURL||cfg.databaseURL==='LIM_INN_DATABASE_URL'){
+      updateLiveStatus('Live: mangler Firebase-konfigurasjon');
+      return;
+    }
+    if(!window.firebase){
+      updateLiveStatus('Live: Firebase SDK ikke lastet');
+      return;
+    }
+    firebaseApp=window.firebase.apps&&window.firebase.apps.length?window.firebase.app():window.firebase.initializeApp(cfg);
+    firebaseAuth=window.firebase.auth();
+    firebaseDb=window.firebase.database();
+    updateLiveStatus('Live: logger inn...');
+    const user=await ensureFirebaseAnonymousUser();
+    firebaseUid=user&&user.uid?user.uid:'';
+    firebaseReady=!!firebaseUid;
+    if(!firebaseReady){
+      updateLiveStatus('Live: innlogging feilet');
+      return;
+    }
+    updateLiveStatus('Live: tilkoblet');
+    const connectedRef=firebaseDb.ref('.info/connected');
+    connectedRef.on('value',snap=>{
+      if(snap.val()===true&&firebaseUid){
+        firebaseDb.ref(FIREBASE_PRESENCE_PATH+'/'+firebaseUid).onDisconnect().remove();
+        firebaseDb.ref(FIREBASE_PRESENCE_PATH+'/'+firebaseUid).set({connectedAt:new Date().toISOString()});
+        updateLiveStatus('Live: tilkoblet');
+      }else{
+        updateLiveStatus('Live: frakoblet');
+      }
+    });
+    firebaseDb.ref(FIREBASE_STATE_PATH).on('value',snap=>{
+      const remote=snap.val();
+      if(remote&&typeof remote==='object'){
+        data=remote;
+        ensureDataShape();
+        localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+        firebaseHasLoaded=true;
+        render();
+      }else{
+        firebaseHasLoaded=true;
+        saveData(false);
+        render();
+      }
+    },err=>{
+      console.error('Firebase database-lytter feilet',err);
+      updateLiveStatus('Live: databasefeil');
+    });
+  }catch(err){
+    console.error('Firebase live init feilet:',err);
+    updateLiveStatus('Live: feil ved tilkobling');
+  }
+}
 function ensureDataShape(){data.employees=Array.isArray(data.employees)?data.employees:clone(defaultData.employees);data.users=Array.isArray(data.users)?data.users:clone(defaultData.users);data.schedules=data.schedules&&typeof data.schedules==='object'?data.schedules:{};data.dayComments=data.dayComments&&typeof data.dayComments==='object'?data.dayComments:{};data.periodNotes=data.periodNotes&&typeof data.periodNotes==='object'?data.periodNotes:{};data.statusOptions=Array.isArray(data.statusOptions)&&data.statusOptions.length?Array.from(new Set(data.statusOptions.filter(Boolean).filter(s=>s!==FIXED_CUSTOM_OPTION))):[...DEFAULT_STATUS_OPTIONS];data.statusColors=data.statusColors&&typeof data.statusColors==='object'?data.statusColors:clone(DEFAULT_STATUS_COLORS);data.specialAssignments=data.specialAssignments&&typeof data.specialAssignments==='object'?data.specialAssignments:{};data.technicalDutyAssignments=data.technicalDutyAssignments&&typeof data.technicalDutyAssignments==='object'?data.technicalDutyAssignments:{};data.specialDutyLabel=String(data.specialDutyLabel||'Vakttelefon').trim()||'Vakttelefon';data.offDutyStatus=String(data.offDutyStatus||'Vakthelg-Fri').trim()||'Vakthelg-Fri';if(!data.statusOptions.includes(data.offDutyStatus))data.statusOptions.unshift(data.offDutyStatus);data.swapRequests=Array.isArray(data.swapRequests)?data.swapRequests:[];data.employees.forEach((e,i)=>{if(!e.id)e.id=createId();if(!e.name)e.name='Ansatt '+(i+1);if(!e.type)e.type='Fast ansatt';if(!e.defaultStatus||!data.statusOptions.includes(e.defaultStatus))e.defaultStatus=data.statusOptions[0]||'0800 til 1600'})}
 function getCurrentUser(){return data.users.find(u=>u.id===currentUserId)||null}
 function isAdmin(){const u=getCurrentUser();return !!u&&u.role==='admin'}
@@ -212,7 +279,7 @@ function renderMainTabs(){els.mainTabs.innerHTML='';[{id:'dashboard',label:'Over
 function renderAdminTabs(){if(!isAdmin())return;els.adminTabs.innerHTML='';[{id:'users',label:'Brukere / ansatte'},{id:'status',label:'Status / notater'},{id:'requests',label:'Alle forespørsler'}].forEach(tab=>{const b=document.createElement('button');b.className='tab-btn'+(currentAdminTab===tab.id?' active':'');b.textContent=tab.label;b.onclick=()=>{currentAdminTab=tab.id;renderAdminViews()};els.adminTabs.appendChild(b)})}
 function renderAdminViews(){['users','status','requests'].forEach(id=>document.getElementById('admin-sub-'+id).classList.toggle('hidden',currentAdminTab!==id))}
 
-function renderScreen(){const user=getCurrentUser();const loggedIn=!!user;els.loginScreen.classList.toggle('hidden',loggedIn);els.appScreen.classList.toggle('hidden',!loggedIn);if(!loggedIn)return;els.welcomeText.textContent='Logget inn som '+user.name+' ('+user.username+')';els.currentRole.textContent=user.role==='admin'?'Administrator':'Bruker';els.currentRole.className='pill '+(user.role==='admin'?'approved':'pending');els.currentRole.title=liveStatusText;els.resetAllBtn.classList.toggle('hidden',!isAdmin());document.getElementById('view-dashboard').classList.toggle('hidden',currentMainTab!=='dashboard');document.getElementById('view-plan').classList.toggle('hidden',currentMainTab!=='plan');document.getElementById('view-swap').classList.toggle('hidden',currentMainTab!=='swap');document.getElementById('view-admin').classList.toggle('hidden',currentMainTab!=='admin'||!isAdmin());renderMainTabs();renderDashboard();renderPlan();renderSwapViews();renderAdmin();maybeShowPendingSwapPopup()}
+function renderScreen(){const user=getCurrentUser();const loggedIn=!!user;els.loginScreen.classList.toggle('hidden',loggedIn);els.appScreen.classList.toggle('hidden',!loggedIn);if(!loggedIn)return;els.welcomeText.textContent='Logget inn som '+user.name+' ('+user.username+')';els.currentRole.textContent=user.role==='admin'?'Administrator':'Bruker';els.currentRole.className='pill '+(user.role==='admin'?'approved':'pending');els.currentRole.title=liveStatusText;els.loginMessage.textContent=liveStatusText==='Live: ikke koblet'?'':els.loginMessage.textContent;els.resetAllBtn.classList.toggle('hidden',!isAdmin());document.getElementById('view-dashboard').classList.toggle('hidden',currentMainTab!=='dashboard');document.getElementById('view-plan').classList.toggle('hidden',currentMainTab!=='plan');document.getElementById('view-swap').classList.toggle('hidden',currentMainTab!=='swap');document.getElementById('view-admin').classList.toggle('hidden',currentMainTab!=='admin'||!isAdmin());renderMainTabs();renderDashboard();renderPlan();renderSwapViews();renderAdmin();maybeShowPendingSwapPopup()}
 
 function renderDashboard(){const user=getCurrentUser(), emp=getEmployeeForCurrentUser(), dates=getVisibleDates();const mine=emp?dates.map(d=>({date:d,entry:getScheduleEntry(formatDateISO(d),emp.id)})).filter(x=>entryDisplayText(x.entry)):[];const pending=data.swapRequests.filter(r=>r.toUserId===user.id&&r.status==='pending').length;const mineReq=data.swapRequests.filter(r=>r.fromUserId===user.id).length;const specials=dates.filter(isSpecialDay).slice(0,12).map(d=>{const a=getEmployeeById(data.specialAssignments[formatDateISO(d)]||'');return '<div class="notice"><strong>'+escapeHtml(dayName(d)+' '+formatNorDate(d))+'</strong><div class="small-text">'+(a?'Ansvarlig: <strong>'+escapeHtml(a.name)+'</strong>':'Ingen ansvarlig valgt')+'</div></div>'}).join('');const todayISO=formatDateISO(new Date());const todayDate=new Date(todayISO+'T00:00:00');const todaysShifts=data.employees.map(emp=>({employee:emp,entry:getScheduleEntry(todayISO,emp.id)})).filter(x=>entryDisplayText(x.entry));const todayComment=data.dayComments[todayISO]||'';const techToday=technicalDutyNameForDateISO(todayISO);document.getElementById('view-dashboard').innerHTML='<div class="stats"><div class="card stat"><div class="label">Mine synlige vakter</div><div class="value">'+mine.length+'</div></div><div class="card stat"><div class="label">Mine forespørsler</div><div class="value">'+mineReq+'</div></div><div class="card stat"><div class="label">Venter på mitt svar</div><div class="value">'+pending+'</div></div><div class="card stat"><div class="label">Visning</div><div class="value">'+(displayMode==='week'?'Uke':displayMode==='month'?'Måned':'År')+'</div></div></div><div class="grid-3"><div class="card section"><h2>Dagen i dag</h2><div class="notice"><strong>'+escapeHtml(dayName(todayDate)+' '+formatNorDate(todayDate))+'</strong><div class="small-text">Oversikt over hvem som er på jobb i dag og dagens kommentar.</div></div><div style="height:10px"></div>'+(techToday?'<div class="tech-duty-box">Teknisk vakt denne uken:<br><strong>'+escapeHtml(techToday)+'</strong></div><div style="height:10px"></div>':'')+(todaysShifts.length?'<div class="today-list">'+todaysShifts.map(x=>'<div class="today-item"><div class="today-name">'+escapeHtml(x.employee.name)+'</div><div class="today-time">'+escapeHtml(entryDisplayText(x.entry))+'</div></div>').join('')+'</div>':'<div class="small-text">Ingen registrert på jobb i dag.</div>')+'<div style="height:12px"></div><div class="notice"><strong>Dagskommentar</strong><div class="day-comment-box">'+escapeHtml(todayComment||'Ingen kommentar for i dag.')+'</div></div></div><div class="card section"><h2>Mine vakter i valgt visning</h2>'+(emp?'<div class="item-list">'+mine.slice(0,15).map(x=>'<div class="notice"><strong>'+escapeHtml(dayName(x.date)+' '+formatNorDate(x.date))+'</strong><div>'+buildStatusChip(entryDisplayText(x.entry),getStatusColor(x.entry.status))+'</div><div class="small-text" style="margin-top:8px;">Dagskommentar: '+escapeHtml(data.dayComments[formatDateISO(x.date)]||'')+'</div></div>').join('')+'</div>':'<div class="small-text">Brukeren er ikke koblet til en ansatt.</div>')+'</div><div class="card section"><h2>Helg / røde dager</h2>'+(specials||'<div class="small-text">Ingen spesialdager i valgt visning.</div>')+'</div></div>'}
 
@@ -270,7 +337,7 @@ function logout(){currentUserId='';sessionStorage.removeItem(SESSION_KEY);render
 
 function bindEvents(){els.loginBtn.onclick=login;els.loginUsername.onkeydown=e=>{if(e.key==='Enter')login()};els.loginPassword.onkeydown=e=>{if(e.key==='Enter')login()};els.logoutBtn.onclick=logout;els.resetAllBtn.onclick=()=>{if(!confirm('Tilbakestille alle data til demo-oppsettet?'))return;data=clone(defaultData);ensureDataShape();saveData(true);render()};els.displayMode.onchange=()=>{displayMode=els.displayMode.value;render()};els.weekStart.onchange=()=>{currentAnchorDate=getMonday(new Date(els.weekStart.value));displayMode='week';render()};els.monthPicker.onchange=()=>{const p=String(els.monthPicker.value||'').split('-');if(p.length===2){currentAnchorDate=new Date(Number(p[0]),Number(p[1])-1,1);displayMode='month';render()}};els.weekNo.onchange=()=>{const year=currentAnchorDate.getFullYear(),week=Math.max(1,Math.min(53,Number(els.weekNo.value||1)));currentAnchorDate=getMonday(new Date(year,0,1+(week-1)*7));displayMode='week';render()};document.getElementById('prevPeriod').onclick=()=>{if(displayMode==='week')currentAnchorDate=addDays(currentAnchorDate,-7);else if(displayMode==='month')currentAnchorDate=new Date(currentAnchorDate.getFullYear(),currentAnchorDate.getMonth()-1,1);else currentAnchorDate=new Date(currentAnchorDate.getFullYear()-1,0,1);render()};document.getElementById('nextPeriod').onclick=()=>{if(displayMode==='week')currentAnchorDate=addDays(currentAnchorDate,7);else if(displayMode==='month')currentAnchorDate=new Date(currentAnchorDate.getFullYear(),currentAnchorDate.getMonth()+1,1);else currentAnchorDate=new Date(currentAnchorDate.getFullYear()+1,0,1);render()};document.getElementById('todayBtn').onclick=()=>{currentAnchorDate=getMonday(new Date());displayMode='week';render()};document.getElementById('autoFillWeekBtn').onclick=()=>isAdmin()&&autoFillWeek();document.getElementById('autoFillMonthBtn').onclick=()=>isAdmin()&&autoFillMonth();document.getElementById('copy5WeeksBtn').onclick=()=>isAdmin()&&copyFiveWeeksOutYear();document.getElementById('saveBtn').onclick=()=>saveData(true);document.getElementById('exportVisibleCsvBtn').onclick=exportVisibleCSV;document.getElementById('exportYearCsvBtn').onclick=exportYearCSV;document.getElementById('exportYearJsonBtn').onclick=exportYearJSON;document.getElementById('exportJsonBtn').onclick=exportJSON;document.getElementById('importJson').onchange=e=>{const f=e.target.files[0];if(f)importJSON(f);e.target.value=''};document.getElementById('addEmployeeBtn').onclick=()=>{if(!isAdmin())return;data.employees.push({id:createId(),name:'Ny ansatt '+(data.employees.length+1),type:'Fast ansatt',defaultStatus:data.statusOptions[0]||'0800 til 1600'});saveData(true);render()};document.getElementById('addUserBtn').onclick=()=>{if(!isAdmin())return;data.users.push({id:createId(),name:'Ny bruker',username:'bruker'+(data.users.length+1),password:'1234',role:'user',linkedEmployeeId:''});saveData(true);render()};document.getElementById('addStatusBtn').onclick=()=>{if(!isAdmin())return;data.statusOptions.push('Ny status');data.statusColors['Ny status']='#f3f4f6';saveData(true);render()};els.offDutyStatus.onchange=()=>{data.offDutyStatus=els.offDutyStatus.value;Object.keys(data.specialAssignments).forEach(dateISO=>{if(data.specialAssignments[dateISO])applySpecialAssignment(dateISO,data.specialAssignments[dateISO])});saveData(true);render()};els.specialDutyLabel.oninput=()=>{data.specialDutyLabel=els.specialDutyLabel.value.trim()||'Vakttelefon';Object.keys(data.specialAssignments).forEach(dateISO=>{if(data.specialAssignments[dateISO])applySpecialAssignment(dateISO,data.specialAssignments[dateISO])});saveData();render()};els.periodNotes.oninput=()=>{data.periodNotes[getPeriodKey()]=els.periodNotes.value;saveData()}}
 function render(){ensureDataShape();if(currentMainTab==='admin'&&!isAdmin())currentMainTab='dashboard';renderScreen()}
-ensureDataShape();bindEvents();render();initFirebaseLive();
+ensureDataShape();bindEvents();render();initFirebaseLive().catch(err=>console.error("Firebase startfeil:",err));
 </script>
 </body>
 </html>
