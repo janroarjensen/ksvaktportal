@@ -96,6 +96,39 @@
 .public-comment{margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#0b1220;color:var(--text);font-size:12px;white-space:pre-wrap}
 .public-empty{padding:16px;color:var(--muted)}
 @media (max-width:1300px){.toolbar,.stats,.grsandefjord Bredbåndid-2,.grid-3,.request-grid,.public-toolbar{grid-template-columns:1fr}.item-row,.status-row,.user-row,.tech-week-actions{grid-template-columns:1fr}}
+
+  .report-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}
+  .report-summary-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+  .report-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+  .report-card{padding:14px;border:1px solid rgba(148,163,184,.16);border-radius:16px;background:linear-gradient(180deg,#0b1220,#111827)}
+  .report-card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px}
+  .report-card .count{font-size:28px;font-weight:900;line-height:1}
+  .report-card .meta{font-size:12px;color:var(--muted)}
+  .report-list{display:flex;flex-wrap:wrap;gap:8px}
+  .report-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#0f172a;border:1px solid var(--line);font-size:12px;font-weight:700}
+  .report-empty{color:var(--muted);font-size:13px}
+  .report-table{width:100%;min-width:980px;border-collapse:separate;border-spacing:0}
+  .report-table th,.report-table td{padding:9px 10px;text-align:left;vertical-align:top}
+  .report-table .employee-col{position:sticky;left:0;background:#111827;z-index:2;min-width:220px}
+  .report-table thead .employee-col{background:#0b1220;z-index:3}
+  .report-table .total-col{font-weight:900;background:rgba(34,197,94,.08)}
+  .report-note{font-size:13px;color:var(--muted);margin-top:10px}
+  .today-status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+  .today-status-box{padding:12px;border:1px solid rgba(148,163,184,.16);border-radius:16px;background:#0b1220}
+  .today-status-box .name{font-weight:900;margin-bottom:8px}
+  .today-status-box .sub{font-size:12px;color:var(--muted);margin-top:8px}
+  .chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+  .chart-card{padding:16px}
+  .chart-wrap{position:relative;height:320px;width:100%}
+  .percent-line{display:flex;align-items:center;gap:10px;margin:8px 0}
+  .percent-line .label{min-width:180px;font-size:13px;font-weight:700;color:var(--text)}
+  .percent-line .bar{flex:1;height:12px;border-radius:999px;background:#0f172a;border:1px solid var(--line);overflow:hidden}
+  .percent-line .fill{height:100%;border-radius:999px}
+  .percent-line .value{min-width:62px;text-align:right;font-size:12px;color:var(--muted);font-weight:800}
+  @media (max-width:1100px){.report-grid,.report-summary-cards,.chart-grid{grid-template-columns:1fr}.percent-line .label{min-width:120px}}
+
+.plan-filter-row input,.plan-filter-row select{font-size:16px;padding:14px 12px;border-radius:14px;}
+.plan-filter-row label{font-size:14px;}
 </style>
 </head>
 <body>
@@ -134,6 +167,8 @@
     </div>
     <div class="tabs" id="mainTabs"></div>
     <div id="view-dashboard" class="tab-view"></div>
+    <div id="view-reception" class="tab-view hidden"></div>
+    <div id="view-report" class="tab-view hidden"></div>
     <div id="view-plan" class="tab-view hidden">
       <div class="card toolbar">
         <div class="field" style="grid-column:span 2;"><label>Visning</label><select id="displayMode"><option value="week">Uke</option><option value="month">Måned</option><option value="year">År</option></select></div>
@@ -230,7 +265,8 @@ const defaultData=(()=>{
     specialDutyLabel:'Vakttelefon',
     offDutyStatus:'Vakthelg-Fri',
     swapRequests:[],
-    technicalDutyAssignments:{}
+    technicalDutyAssignments:{},
+    receptionReports:{}
   };
 })();
 let data=loadData();
@@ -240,6 +276,8 @@ let currentAdminTab='users';
 let displayMode='week';
 let currentAnchorDate=getMonday(new Date());
 let technicalYear=(new Date()).getFullYear();
+let receptionReportDateISO=formatDateISO(new Date());
+let receptionHideEmpty=true;
 let publicDisplayMode='week';
 let publicAnchorDate=getMonday(new Date());
 let planSwapState={dateISO:'',fromEmployeeId:'',comment:'',approveForRequestId:'',approveComment:''};let planFilterText='';let planFilterMode='all';let planDayFilter='all';let mobilePlanDateISO='';let mobileRenderWidth=window.innerWidth;
@@ -349,7 +387,7 @@ async function initFirebaseLive(){
     updateLiveStatus('Live: feil ved tilkobling');
   }
 }
-function ensureDataShape(){data.employees=Array.isArray(data.employees)?data.employees:clone(defaultData.employees);data.technicalEmployees=Array.isArray(data.technicalEmployees)?data.technicalEmployees:[];data.users=Array.isArray(data.users)?data.users:clone(defaultData.users);data.schedules=data.schedules&&typeof data.schedules==='object'?data.schedules:{};data.dayComments=data.dayComments&&typeof data.dayComments==='object'?data.dayComments:{};data.periodNotes=data.periodNotes&&typeof data.periodNotes==='object'?data.periodNotes:{};data.statusOptions=Array.isArray(data.statusOptions)&&data.statusOptions.length?Array.from(new Set(data.statusOptions.filter(Boolean).filter(s=>s!==FIXED_CUSTOM_OPTION))):[...DEFAULT_STATUS_OPTIONS];data.statusColors=data.statusColors&&typeof data.statusColors==='object'?data.statusColors:clone(DEFAULT_STATUS_COLORS);data.specialAssignments=data.specialAssignments&&typeof data.specialAssignments==='object'?data.specialAssignments:{};data.technicalDutyAssignments=data.technicalDutyAssignments&&typeof data.technicalDutyAssignments==='object'?data.technicalDutyAssignments:{};data.specialDutyLabel=String(data.specialDutyLabel||'Vakttelefon').trim()||'Vakttelefon';data.offDutyStatus=String(data.offDutyStatus||'Vakthelg-Fri').trim()||'Vakthelg-Fri';if(!data.statusOptions.includes(data.offDutyStatus))data.statusOptions.unshift(data.offDutyStatus);data.swapRequests=Array.isArray(data.swapRequests)?data.swapRequests:[];data.employees.forEach((e,i)=>{if(!e.id)e.id=createId();if(!e.name)e.name='Ansatt '+(i+1);if(!e.type)e.type='Fast ansatt';if(!e.defaultStatus||!data.statusOptions.includes(e.defaultStatus))e.defaultStatus=data.statusOptions[0]||'0800 til 1600'});data.technicalEmployees.forEach((e,i)=>{if(!e.id)e.id=createId();if(!e.name)e.name='Teknisk '+(i+1);if(typeof e.linkedUserId!=='string')e.linkedUserId=''});data.users.forEach((u,i)=>{if(!u.id)u.id=createId();if(!u.name)u.name='Bruker '+(i+1);if(!u.username)u.username='bruker'+(i+1);if(!u.role)u.role='user';if(typeof u.linkedEmployeeId!=='string')u.linkedEmployeeId='';if(typeof u.linkedTechnicalEmployeeId!=='string')u.linkedTechnicalEmployeeId=''});data.technicalEmployees.forEach((emp,idx)=>{let linked=data.users.find(u=>u.id===emp.linkedUserId)||data.users.find(u=>u.linkedTechnicalEmployeeId===emp.id);if(!linked){linked={id:createId(),name:emp.name,username:'teknisk'+(idx+1),password:'1234',role:'tech',linkedEmployeeId:'',linkedTechnicalEmployeeId:emp.id};data.users.push(linked)}linked.role='tech';linked.name=emp.name;linked.linkedTechnicalEmployeeId=emp.id;emp.linkedUserId=linked.id});Object.keys(data.technicalDutyAssignments).forEach(k=>{const v=data.technicalDutyAssignments[k];if(v&&!data.technicalEmployees.find(e=>e.id===v))delete data.technicalDutyAssignments[k]})}
+function ensureDataShape(){data.employees=Array.isArray(data.employees)?data.employees:clone(defaultData.employees);data.technicalEmployees=Array.isArray(data.technicalEmployees)?data.technicalEmployees:[];data.users=Array.isArray(data.users)?data.users:clone(defaultData.users);data.schedules=data.schedules&&typeof data.schedules==='object'?data.schedules:{};data.dayComments=data.dayComments&&typeof data.dayComments==='object'?data.dayComments:{};data.periodNotes=data.periodNotes&&typeof data.periodNotes==='object'?data.periodNotes:{};data.statusOptions=Array.isArray(data.statusOptions)&&data.statusOptions.length?Array.from(new Set(data.statusOptions.filter(Boolean).filter(s=>s!==FIXED_CUSTOM_OPTION))):[...DEFAULT_STATUS_OPTIONS];data.statusColors=data.statusColors&&typeof data.statusColors==='object'?data.statusColors:clone(DEFAULT_STATUS_COLORS);data.specialAssignments=data.specialAssignments&&typeof data.specialAssignments==='object'?data.specialAssignments:{};data.technicalDutyAssignments=data.technicalDutyAssignments&&typeof data.technicalDutyAssignments==='object'?data.technicalDutyAssignments:{};data.receptionReports=data.receptionReports&&typeof data.receptionReports==='object'?data.receptionReports:{};data.specialDutyLabel=String(data.specialDutyLabel||'Vakttelefon').trim()||'Vakttelefon';data.offDutyStatus=String(data.offDutyStatus||'Vakthelg-Fri').trim()||'Vakthelg-Fri';if(!data.statusOptions.includes(data.offDutyStatus))data.statusOptions.unshift(data.offDutyStatus);data.swapRequests=Array.isArray(data.swapRequests)?data.swapRequests:[];data.employees.forEach((e,i)=>{if(!e.id)e.id=createId();if(!e.name)e.name='Ansatt '+(i+1);if(!e.type)e.type='Fast ansatt';if(!e.defaultStatus||!data.statusOptions.includes(e.defaultStatus))e.defaultStatus=data.statusOptions[0]||'0800 til 1600'});data.technicalEmployees.forEach((e,i)=>{if(!e.id)e.id=createId();if(!e.name)e.name='Teknisk '+(i+1);if(typeof e.linkedUserId!=='string')e.linkedUserId=''});data.users.forEach((u,i)=>{if(!u.id)u.id=createId();if(!u.name)u.name='Bruker '+(i+1);if(!u.username)u.username='bruker'+(i+1);if(!u.role)u.role='user';if(typeof u.linkedEmployeeId!=='string')u.linkedEmployeeId='';if(typeof u.linkedTechnicalEmployeeId!=='string')u.linkedTechnicalEmployeeId=''});data.technicalEmployees.forEach((emp,idx)=>{let linked=data.users.find(u=>u.id===emp.linkedUserId)||data.users.find(u=>u.linkedTechnicalEmployeeId===emp.id);if(!linked){linked={id:createId(),name:emp.name,username:'teknisk'+(idx+1),password:'1234',role:'tech',linkedEmployeeId:'',linkedTechnicalEmployeeId:emp.id};data.users.push(linked)}linked.role='tech';linked.name=emp.name;linked.linkedTechnicalEmployeeId=emp.id;emp.linkedUserId=linked.id});Object.keys(data.technicalDutyAssignments).forEach(k=>{const v=data.technicalDutyAssignments[k];if(v&&!data.technicalEmployees.find(e=>e.id===v))delete data.technicalDutyAssignments[k]})}
 function getCurrentUser(){return data.users.find(u=>u.id===currentUserId)||null}
 function isAdmin(){const u=getCurrentUser();return !!u&&u.role==='admin'}
 function getEmployeeById(id){return data.employees.find(e=>e.id===id)||null}
@@ -376,7 +414,7 @@ function applyMassRangeUpdate(){if(!isAdmin())return;const empSel=document.getEl
 function getCurrentMobileDateISO(dates){if(!dates.length)return '';const wanted=mobilePlanDateISO&&dates.find(d=>formatDateISO(d)===mobilePlanDateISO);return wanted?mobilePlanDateISO:formatDateISO(dates[0])}
 function renderPlanShiftHtml(dateISO,emp,entry,isOwnCell){const wrapper=document.createElement('div');renderPlanShiftBox(wrapper,dateISO,emp,entry,isOwnCell);return wrapper.innerHTML}
 function renderMobilePlan(){const host=els.scheduleMobileView;if(!host)return;const admin=isAdmin(), dates=getPlanFilteredDates(), employees=getPlanFilteredEmployees(), myEmployee=getEmployeeForCurrentUser(), myEmployeeId=myEmployee?myEmployee.id:'';els.scheduleTable.classList.add('hidden');if(els.scheduleTableWrap)els.scheduleTableWrap.classList.add('hidden');host.className='mobile-plan';if(!dates.length){host.innerHTML='<div class="mobile-empty">Ingen dager matcher valgt filter.</div>';return}mobilePlanDateISO=getCurrentMobileDateISO(dates);const currentIndex=Math.max(0,dates.findIndex(d=>formatDateISO(d)===mobilePlanDateISO));const currentDate=dates[currentIndex];const dateISO=formatDateISO(currentDate);const prevDisabled=currentIndex===0?'disabled':'', nextDisabled=currentIndex===dates.length-1?'disabled':'';const techDutyName=technicalDutyNameForDateISO(dateISO);const comment=data.dayComments[dateISO]||'';const employeesHtml=employees.length?employees.map(emp=>{const entry=getScheduleEntry(dateISO,emp.id);const head='<div class="mobile-employee-head"><div class="employee-name">'+escapeHtml(emp.name)+' <span class="chip '+(emp.type==='Deltid'?'parttime':'')+'">'+escapeHtml(emp.type||'Ansatt')+'</span></div><div class="mini">Standard: '+escapeHtml(emp.defaultStatus||'')+'</div></div>';if(isSpecialDay(currentDate)){const assigneeId=data.specialAssignments[dateISO]||'';const boxCls='special-box'+(assigneeId===emp.id?' selected':'');let inner='';if(!assigneeId)inner='<div class="who">Ikke satt</div><div class="sub">Ingen ansvarlig valgt ennå.</div>';else if(assigneeId===emp.id)inner='<div class="who">Har vakt</div><div class="status">'+escapeHtml(data.specialDutyLabel)+'</div><div class="sub">Valgt ansvarlig denne dagen</div>';else inner='<div class="who">Ikke valgt</div><div class="status">'+escapeHtml(data.offDutyStatus)+'</div><div class="sub">Ansvarlig er en annen person</div>';return '<div class="mobile-employee-card">'+head+'<div class="'+boxCls+'">'+inner+'</div></div>'}if(admin){const options='<option value="">Velg status</option>'+getStatusOptionsWithCustom().map(option=>'<option value="'+escapeHtml(option)+'" '+(entry.status===option?'selected':'')+'>'+escapeHtml(option)+'</option>').join('');return '<div class="mobile-employee-card"><div class="mobile-admin-editor">'+head+'<select data-mobile-emp="'+emp.id+'" data-mobile-date="'+dateISO+'" class="mobile-status-select">'+options+'</select><input type="text" maxlength="40" placeholder="Skriv selv…" value="'+escapeHtml(entry.custom||'')+'" class="mobile-custom-input" data-mobile-emp="'+emp.id+'" data-mobile-date="'+dateISO+'" style="display:'+(entry.status===FIXED_CUSTOM_OPTION?'block':'none')+'"><div class="plan-status-preview" style="'+(entryDisplayText(entry)?'background:'+escapeHtml(getStatusColor(entry.status))+';':'display:none;')+'">'+(entryDisplayText(entry)?buildStatusChip(entryDisplayText(entry),getStatusColor(entry.status)): '')+'</div></div></div>'}return '<div class="mobile-employee-card">'+head+renderPlanShiftHtml(dateISO,emp,entry,emp.id===myEmployeeId)+'</div>'}).join(''):'<div class="mobile-empty">Ingen ansatte matcher valgt filter.</div>';host.innerHTML='<div class="mobile-day-card"><div class="mobile-day-head"><div class="mobile-day-meta"><div class="mobile-day-title">'+escapeHtml(dayName(currentDate)+' '+formatNorDate(currentDate))+'</div><div class="small-text">Dag '+(currentIndex+1)+' av '+dates.length+'</div>'+(isHoliday(currentDate)?'<span class="tag holiday">'+escapeHtml(holidayName(currentDate))+'</span>':isWeekend(currentDate)?'<span class="tag weekend">Helg / vakttelefon</span>':'')+(isToday(currentDate)?'<span class="tag today">I dag</span>':'')+'</div><div style="display:flex;gap:8px;flex-wrap:wrap;"><button id="mobilePrevDayBtn" class="secondary small" '+prevDisabled+'>← Forrige dag</button><button id="mobileNextDayBtn" class="secondary small" '+nextDisabled+'>Neste dag →</button></div></div>'+(techDutyName?'<div class="tech-duty-box">Teknisk vakt:<br><strong>'+escapeHtml(techDutyName)+'</strong></div>':'')+'<div><label class="muted">Dagskommentar</label>'+(admin?'<textarea id="mobileDayComment" class="mobile-comment">'+escapeHtml(comment)+'</textarea>':'<div class="public-comment">'+escapeHtml(comment||'Ingen kommentar')+'</div>')+'</div><div class="mobile-employee-list">'+employeesHtml+'</div></div>';const prevBtn=document.getElementById('mobilePrevDayBtn');const nextBtn=document.getElementById('mobileNextDayBtn');if(prevBtn)prevBtn.onclick=()=>{if(currentIndex>0){mobilePlanDateISO=formatDateISO(dates[currentIndex-1]);renderTable()}};if(nextBtn)nextBtn.onclick=()=>{if(currentIndex<dates.length-1){mobilePlanDateISO=formatDateISO(dates[currentIndex+1]);renderTable()}};const mobileComment=document.getElementById('mobileDayComment');if(mobileComment){mobileComment.oninput=()=>{data.dayComments[dateISO]=mobileComment.value;saveLocalOnly()};mobileComment.onblur=()=>{data.dayComments[dateISO]=mobileComment.value;forceSaveNow(false)};mobileComment.onchange=()=>{data.dayComments[dateISO]=mobileComment.value;forceSaveNow(false)}};host.querySelectorAll('.mobile-status-select').forEach(sel=>sel.onchange=()=>{const entry=getScheduleEntry(sel.dataset.mobileDate,sel.dataset.mobileEmp);entry.status=sel.value;if(sel.value!==FIXED_CUSTOM_OPTION)entry.custom='';const cellDate=new Date(sel.dataset.mobileDate+'T00:00:00');if(cellDate.getDay()===1&&entry.status){autoFillEmployeeWeekFromMonday(sel.dataset.mobileDate,sel.dataset.mobileEmp,entry.status,entry.custom)}saveData();renderTable()});host.querySelectorAll('.mobile-custom-input').forEach(inp=>inp.oninput=()=>{const entry=getScheduleEntry(inp.dataset.mobileDate,inp.dataset.mobileEmp);entry.status=FIXED_CUSTOM_OPTION;entry.custom=inp.value;const cellDate=new Date(inp.dataset.mobileDate+'T00:00:00');if(cellDate.getDay()===1){autoFillEmployeeWeekFromMonday(inp.dataset.mobileDate,inp.dataset.mobileEmp,entry.status,entry.custom)}saveData();renderTable()})}
-function ensurePlanFilterControls(){let bar=document.getElementById('planFilterToolbar');if(!bar){bar=document.createElement('div');bar.id='planFilterToolbar';bar.className='card toolbar';const planView=document.getElementById('view-plan');const ref=document.getElementById('planExtraToolbar');planView.insertBefore(bar,ref)}bar.innerHTML='<div class="plan-filter-row"><div class="field"><label>Søk ansatt</label><input type="text" id="planFilterText" placeholder="Skriv navn…" value="'+escapeHtml(planFilterText)+'"></div><div class="field"><label>Radfilter</label><select id="planFilterMode"><option value="all" '+(planFilterMode==='all'?'selected':'')+'>Alle</option><option value="with-shift" '+(planFilterMode==='with-shift'?'selected':'')+'>Kun med vakt</option><option value="deviation" '+(planFilterMode==='deviation'?'selected':'')+'>Kun avvik</option></select></div><div class="field"><label>Dagfilter</label><select id="planDayFilter"><option value="all" '+(planDayFilter==='all'?'selected':'')+'>Alle dager</option><option value="special" '+(planDayFilter==='special'?'selected':'')+'>Kun helg / røde dager</option></select></div><div class="field"><label>&nbsp;</label><button id="resetPlanFiltersBtn" class="secondary">Nullstill filter</button></div></div>';document.getElementById('planFilterText').oninput=e=>{planFilterText=e.target.value;mobilePlanDateISO='';renderTable()};document.getElementById('planFilterMode').onchange=e=>{planFilterMode=e.target.value;mobilePlanDateISO='';renderTable()};document.getElementById('planDayFilter').onchange=e=>{planDayFilter=e.target.value;mobilePlanDateISO='';renderTable()};document.getElementById('resetPlanFiltersBtn').onclick=()=>{planFilterText='';planFilterMode='all';planDayFilter='all';mobilePlanDateISO='';renderPlan()}}
+function ensurePlanFilterControls(){let bar=document.getElementById('planFilterToolbar');if(!bar){bar=document.createElement('div');bar.id='planFilterToolbar';bar.className='card toolbar';const planView=document.getElementById('view-plan');const ref=document.getElementById('planExtraToolbar');planView.insertBefore(bar,ref)}bar.innerHTML='<div class="plan-filter-row" style="display:grid;grid-template-columns:2fr 1.5fr 1.5fr 1fr;gap:16px;align-items:end;"><div class="field" style="grid-column:span 1;"><label>Søk ansatt</label><input type="text" id="planFilterText" style="height:52px;" placeholder="Skriv navn…" value="'+escapeHtml(planFilterText)+'"></div><div class="field"><label>Radfilter</label><select id="planFilterMode" style="height:52px;"><option value="all" '+(planFilterMode==='all'?'selected':'')+'>Alle</option><option value="with-shift" '+(planFilterMode==='with-shift'?'selected':'')+'>Kun med vakt</option><option value="deviation" '+(planFilterMode==='deviation'?'selected':'')+'>Kun avvik</option></select></div><div class="field"><label>Dagfilter</label><select id="planDayFilter" style="height:52px;"><option value="all" '+(planDayFilter==='all'?'selected':'')+'>Alle dager</option><option value="special" '+(planDayFilter==='special'?'selected':'')+'>Kun helg / røde dager</option></select></div><div class="field"><label>&nbsp;</label><button id="resetPlanFiltersBtn" class="secondary">Nullstill filter</button></div></div>';document.getElementById('planFilterText').oninput=e=>{planFilterText=e.target.value;mobilePlanDateISO='';renderTable()};document.getElementById('planFilterMode').onchange=e=>{planFilterMode=e.target.value;mobilePlanDateISO='';renderTable()};document.getElementById('planDayFilter').onchange=e=>{planDayFilter=e.target.value;mobilePlanDateISO='';renderTable()};document.getElementById('resetPlanFiltersBtn').onclick=()=>{planFilterText='';planFilterMode='all';planDayFilter='all';mobilePlanDateISO='';renderPlan()}}
 function ensureMassEditControls(){const bar=document.getElementById('planExtraToolbar');if(!bar||!isAdmin())return;let wrap=document.getElementById('massEditWrap');if(!wrap){wrap=document.createElement('div');wrap.id='massEditWrap';wrap.className='field';wrap.style.gridColumn='span 12';bar.appendChild(wrap)}const visibleDates=getVisibleDates();const fromDefault=visibleDates.length?formatDateISO(visibleDates[0]):formatDateISO(new Date());const toDefault=visibleDates.length?formatDateISO(visibleDates[visibleDates.length-1]):formatDateISO(new Date());wrap.innerHTML='<label>Masseendring over datointervall</label><div class="mass-edit-grid"><div class="field"><label>Ansatt</label><select id="massEditEmployee"><option value="ALL">Alle ansatte</option>'+data.employees.map(emp=>'<option value="'+emp.id+'">'+escapeHtml(emp.name)+'</option>').join('')+'</select></div><div class="field"><label>Fra dato</label><input id="massEditFrom" type="date" value="'+fromDefault+'"></div><div class="field"><label>Til dato</label><input id="massEditTo" type="date" value="'+toDefault+'"></div><div class="field"><label>Status</label><select id="massEditStatus">'+getStatusOptionsWithCustom().map(option=>'<option value="'+escapeHtml(option)+'">'+escapeHtml(option)+'</option>').join('')+'</select></div><div class="field"><label>Egendefinert tekst</label><input id="massEditCustom" type="text" placeholder="Kun ved egendefinert" style="display:none"></div><div class="field"><label>&nbsp;</label><button id="applyMassEditBtn" class="warn">Utfør masseendring</button></div></div><div class="small-text">Masseendring hopper automatisk over helg og røde dager, siden disse styres som spesialvakt.</div>';const statusSel=document.getElementById('massEditStatus');const customInput=document.getElementById('massEditCustom');statusSel.onchange=()=>{customInput.style.display=statusSel.value===FIXED_CUSTOM_OPTION?'block':'none'};document.getElementById('applyMassEditBtn').onclick=applyMassRangeUpdate}
 function getPeriodKey(){if(displayMode==='week')return 'week:'+formatDateISO(getMonday(currentAnchorDate)); if(displayMode==='month')return 'month:'+formatMonthValue(currentAnchorDate); return 'year:'+currentAnchorDate.getFullYear()}
 
@@ -406,11 +444,407 @@ function renderTechnicalEmployees(){if(!els.technicalEmployeeList)return;els.tec
 function handleTechnicalEmployeeField(e){const emp=getTechnicalEmployeeById(e.target.dataset.techId);if(!emp)return;emp[e.target.dataset.techField]=e.target.value||'Teknisk';const user=getUserById(emp.linkedUserId)||data.users.find(u=>u.linkedTechnicalEmployeeId===emp.id);if(user)user.name=emp.name;saveData(true);render()}
 function handleTechnicalUserField(e){const user=data.users.find(u=>u.id===e.target.dataset.techUserId)||null;if(!user)return;user[e.target.dataset.techUserField]=e.target.value;saveData(true);render()}
 function deleteTechnicalEmployee(id){const emp=getTechnicalEmployeeById(id);if(!emp||!confirm('Slette '+emp.name+'?'))return;data.technicalEmployees=data.technicalEmployees.filter(e=>e.id!==id);data.users=data.users.filter(u=>u.linkedTechnicalEmployeeId!==id);Object.keys(data.technicalDutyAssignments).forEach(k=>{if(data.technicalDutyAssignments[k]===id)delete data.technicalDutyAssignments[k]});saveData(true);render()}
-function renderMainTabs(){els.mainTabs.innerHTML='';[{id:'dashboard',label:'Oversikt'},{id:'plan',label:'Vaktplan'},{id:'swap',label:'Bytteforespørsler'},{id:'tech',label:'Teknisk vakt'}].concat(isAdmin()?[{id:'admin',label:'Administrasjon'}]:[]).forEach(tab=>{const b=document.createElement('button');b.className='tab-btn'+(currentMainTab===tab.id?' active':'');b.textContent=tab.label;b.onclick=()=>{currentMainTab=tab.id;render()};els.mainTabs.appendChild(b)})}
+function renderMainTabs(){els.mainTabs.innerHTML='';[{id:'dashboard',label:'Oversikt'},{id:'reception',label:'Kundemottak'}].concat(isAdmin()?[{id:'report',label:'Statusrapport'}]:[]).concat([{id:'plan',label:'Vaktplan'},{id:'swap',label:'Bytteforespørsler'},{id:'tech',label:'Teknisk vakt'}]).concat(isAdmin()?[{id:'admin',label:'Administrasjon'}]:[]).forEach(tab=>{const b=document.createElement('button');b.className='tab-btn'+(currentMainTab===tab.id?' active':'');b.textContent=tab.label;b.onclick=()=>{currentMainTab=tab.id;render()};els.mainTabs.appendChild(b)})}
 function renderAdminTabs(){if(!isAdmin())return;els.adminTabs.innerHTML='';[{id:'users',label:'Brukere / ansatte'},{id:'status',label:'Status / notater'},{id:'requests',label:'Alle forespørsler'}].forEach(tab=>{const b=document.createElement('button');b.className='tab-btn'+(currentAdminTab===tab.id?' active':'');b.textContent=tab.label;b.onclick=()=>{currentAdminTab=tab.id;renderAdminViews()};els.adminTabs.appendChild(b)})}
 function renderAdminViews(){['users','status','requests'].forEach(id=>document.getElementById('admin-sub-'+id).classList.toggle('hidden',currentAdminTab!==id))}
 
-function renderScreen(){const user=getCurrentUser();const loggedIn=!!user;els.loginScreen.classList.toggle('hidden',loggedIn);els.appScreen.classList.toggle('hidden',!loggedIn);if(els.publicScreen) els.publicScreen.classList.toggle('hidden',loggedIn);if(!loggedIn){renderPublicScreen();return}updateLiveStatus(liveStatusText);els.welcomeText.textContent='Logget inn som '+user.name+' ('+user.username+')';els.currentRole.textContent=user.role==='admin'?'Administrator':user.role==='tech'?'Teknisk vakt':'Bruker';els.currentRole.className='pill '+(user.role==='admin'?'approved':'pending');els.currentRole.title=liveStatusText;if(els.resetAllBtn) els.resetAllBtn.classList.toggle('hidden',!isAdmin());document.getElementById('view-dashboard').classList.toggle('hidden',currentMainTab!=='dashboard');document.getElementById('view-plan').classList.toggle('hidden',currentMainTab!=='plan');document.getElementById('view-swap').classList.toggle('hidden',currentMainTab!=='swap');document.getElementById('view-tech').classList.toggle('hidden',currentMainTab!=='tech');document.getElementById('view-admin').classList.toggle('hidden',currentMainTab!=='admin'||!isAdmin());renderMainTabs();renderDashboard();renderPlan();renderSwapViews();renderTechnicalDutyPage();renderAdmin();maybeShowPendingSwapPopup()}
+function renderScreen(){const user=getCurrentUser();const loggedIn=!!user;els.loginScreen.classList.toggle('hidden',loggedIn);els.appScreen.classList.toggle('hidden',!loggedIn);if(els.publicScreen) els.publicScreen.classList.toggle('hidden',loggedIn);if(!loggedIn){renderPublicScreen();return}updateLiveStatus(liveStatusText);els.welcomeText.textContent='Logget inn som '+user.name+' ('+user.username+')';els.currentRole.textContent=user.role==='admin'?'Administrator':user.role==='tech'?'Teknisk vakt':'Bruker';els.currentRole.className='pill '+(user.role==='admin'?'approved':'pending');els.currentRole.title=liveStatusText;if(els.resetAllBtn) els.resetAllBtn.classList.toggle('hidden',!isAdmin());if(currentMainTab==='report'&&!isAdmin())currentMainTab='dashboard';document.getElementById('view-dashboard').classList.toggle('hidden',currentMainTab!=='dashboard');document.getElementById('view-reception').classList.toggle('hidden',currentMainTab!=='reception');document.getElementById('view-report').classList.toggle('hidden',currentMainTab!=='report'||!isAdmin());document.getElementById('view-plan').classList.toggle('hidden',currentMainTab!=='plan');document.getElementById('view-swap').classList.toggle('hidden',currentMainTab!=='swap');document.getElementById('view-tech').classList.toggle('hidden',currentMainTab!=='tech');document.getElementById('view-admin').classList.toggle('hidden',currentMainTab!=='admin'||!isAdmin());renderMainTabs();renderDashboard();renderReceptionPage();if(isAdmin())renderStatusReport();renderPlan();renderSwapViews();renderTechnicalDutyPage();renderAdmin();maybeShowPendingSwapPopup()}
+
+
+function buildStatusReportData(){
+  const dates=getVisibleDates();
+  const employees=getVisibleEmployees();
+  const statusMap={};
+  const employeeMap={};
+  let totalAssigned=0;
+  dates.forEach(d=>{
+    const dateISO=formatDateISO(d);
+    employees.forEach(emp=>{
+      const entry=getScheduleEntry(dateISO,emp.id);
+      const text=entryDisplayText(entry).trim();
+      if(!employeeMap[emp.id])employeeMap[emp.id]={employee:emp,total:0,statuses:{}};
+      if(!text)return;
+      totalAssigned++;
+      if(!statusMap[text])statusMap[text]={name:text,count:0,employees:new Set(),dates:new Set(),color:getStatusColor(entry.status)};
+      statusMap[text].count++;
+      statusMap[text].employees.add(emp.name);
+      statusMap[text].dates.add(dateISO);
+      employeeMap[emp.id].total++;
+      employeeMap[emp.id].statuses[text]=(employeeMap[emp.id].statuses[text]||0)+1;
+    });
+  });
+  const statuses=Object.values(statusMap).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name,'no'));
+  const employeeRows=Object.values(employeeMap).sort((a,b)=>a.employee.name.localeCompare(b.employee.name,'no'));
+  return {dates,employees,statuses,employeeRows,totalAssigned};
+}
+
+function exportStatusReportCsv(report){
+  try{
+    const periodLabel=displayMode==='week'?'uke':displayMode==='month'?'måned':'år';
+    const periode=displayMode==='week'
+      ? ('Uke '+getWeekNumber(getMonday(currentAnchorDate))+' '+currentAnchorDate.getFullYear())
+      : displayMode==='month'
+        ? formatMonthValue(currentAnchorDate)
+        : String(currentAnchorDate.getFullYear());
+    const columns=report.statuses.map(s=>s.name);
+    const lines=[];
+    lines.push(['Statusrapport', periodLabel, periode]);
+    lines.push([]);
+    lines.push(['Oppsummering']);
+    lines.push(['Registrerte statuslinjer', String(report.totalAssigned||0)]);
+    lines.push(['Ulike statuser', String(report.statuses.length||0)]);
+    lines.push(['Mest brukt status', report.statuses[0]?report.statuses[0].name:'Ingen']);
+    lines.push([]);
+    lines.push(['Statusfordeling']);
+    lines.push(['Status','Antall','Ansatte','Dager','Prosent']);
+    const total=report.totalAssigned||0;
+    report.statuses.forEach(item=>{
+      const pct=total?((item.count/total)*100).toFixed(1):'0.0';
+      lines.push([item.name, String(item.count), String(item.employees.size), String(item.dates.size), pct+' %']);
+    });
+    lines.push([]);
+    lines.push(['Status per ansatt']);
+    lines.push(['Ansatt'].concat(columns).concat(['Totalt']));
+    report.employeeRows.forEach(row=>{
+      lines.push([row.employee.name].concat(columns.map(name=>String(row.statuses[name]||0))).concat([String(row.total||0)]));
+    });
+    const escapeCsv=(v)=>{
+      const s=String(v??'');
+      if(/[";,\n]/.test(s)) return '"'+s.replace(/"/g,'""')+'"';
+      return s;
+    };
+    const csv='\ufeff'+lines.map(row=>row.map(escapeCsv).join(';')).join('\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const safePeriod=periode.replace(/[^0-9A-Za-zæøåÆØÅ_-]+/g,'-');
+    a.href=url;
+    a.download='statusrapport-'+safePeriod+'.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(err){
+    alert('Kunne ikke eksportere CSV.');
+    console.error(err);
+  }
+}
+function destroyReportCharts(){
+  if(window.__statusReportCharts && Array.isArray(window.__statusReportCharts))window.__statusReportCharts.forEach(ch=>{try{ch.destroy()}catch(e){}});
+  window.__statusReportCharts=[];
+}
+function renderStatusReportCharts(report){
+  destroyReportCharts();
+  if(typeof Chart==='undefined')return;
+  const statusLabels=report.statuses.map(x=>x.name);
+  const counts=report.statuses.map(x=>x.count);
+  const colors=report.statuses.map(x=>x.color||'#60a5fa');
+  const total=report.totalAssigned||0;
+  const pieCanvas=document.getElementById('statusPieChart');
+  const barCanvas=document.getElementById('statusBarChart');
+  if(pieCanvas && statusLabels.length){
+    const pieChart=new Chart(pieCanvas.getContext('2d'),{type:'doughnut',data:{labels:statusLabels,datasets:[{data:counts,backgroundColor:colors,borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#e5e7eb'}},tooltip:{callbacks:{label:(ctx)=>{const v=ctx.raw||0; const pct=total?((v/total)*100).toFixed(1):'0.0'; return ' '+ctx.label+': '+v+' ('+pct+' %)';}}}}}});
+    window.__statusReportCharts.push(pieChart);
+  }
+  if(barCanvas && statusLabels.length){
+    const barChart=new Chart(barCanvas.getContext('2d'),{type:'bar',data:{labels:statusLabels,datasets:[{label:'Antall',data:counts,backgroundColor:colors,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',scales:{x:{ticks:{color:'#e5e7eb'},grid:{color:'rgba(148,163,184,.18)'}},y:{ticks:{color:'#e5e7eb'},grid:{display:false}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:(ctx)=>{const v=ctx.raw||0; const pct=total?((v/total)*100).toFixed(1):'0.0'; return ' Antall: '+v+' ('+pct+' %)';}}}}}});
+    window.__statusReportCharts.push(barChart);
+  }
+}
+
+function getReceptionReportEntry(dateISO,userId){
+  data.receptionReports=data.receptionReports&&typeof data.receptionReports==='object'?data.receptionReports:{};
+  if(!data.receptionReports[dateISO])data.receptionReports[dateISO]={};
+  if(!data.receptionReports[dateISO][userId])data.receptionReports[dateISO][userId]={customer0800_1600:0,customer1600_1800:0,contractor0800_1800:0,updatedAt:''};
+  return data.receptionReports[dateISO][userId];
+}
+function getReceptionReportRows(dateISO){
+  const users=(data.users||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'no'));
+  return users.map(user=>{
+    const entry=((data.receptionReports||{})[dateISO]||{})[user.id]||{customer0800_1600:0,customer1600_1800:0,contractor0800_1800:0,updatedAt:''};
+    const a=Number(entry.customer0800_1600||0), b=Number(entry.customer1600_1800||0), c=Number(entry.contractor0800_1800||0);
+    return {user,entry,total:a+b+c};
+  });
+}
+
+function getReceptionHistoryRows(){
+  const reports=data.receptionReports&&typeof data.receptionReports==='object'?data.receptionReports:{};
+  return Object.keys(reports).sort((a,b)=>b.localeCompare(a)).map(dateISO=>{
+    const day=reports[dateISO]&&typeof reports[dateISO]==='object'?reports[dateISO]:{};
+    const userIds=Object.keys(day);
+    const sums=userIds.reduce((acc,userId)=>{
+      const item=day[userId]||{};
+      acc.customer0800_1600+=Number(item.customer0800_1600||0);
+      acc.customer1600_1800+=Number(item.customer1600_1800||0);
+      acc.contractor0800_1800+=Number(item.contractor0800_1800||0);
+      return acc;
+    },{customer0800_1600:0,customer1600_1800:0,contractor0800_1800:0});
+    sums.total=sums.customer0800_1600+sums.customer1600_1800+sums.contractor0800_1800;
+    sums.dateISO=dateISO;
+    sums.userCount=userIds.filter(userId=>{
+      const item=day[userId]||{};
+      return Number(item.customer0800_1600||0)>0||Number(item.customer1600_1800||0)>0||Number(item.contractor0800_1800||0)>0;
+    }).length;
+    return sums;
+  });
+}
+function buildReceptionHistorySummary(historyRows){
+  const summary=historyRows.reduce((acc,row)=>{
+    acc.days++;
+    acc.customer0800_1600+=row.customer0800_1600;
+    acc.customer1600_1800+=row.customer1600_1800;
+    acc.contractor0800_1800+=row.contractor0800_1800;
+    acc.total+=row.total;
+    if(!acc.topDay || row.total>acc.topDay.total) acc.topDay=row;
+    return acc;
+  },{days:0,customer0800_1600:0,customer1600_1800:0,contractor0800_1800:0,total:0,topDay:null});
+  summary.averagePerDay=summary.days?(summary.total/summary.days):0;
+  return summary;
+}
+
+
+function exportReceptionCsv(dateISO, visibleRows, totals, historyRows, historySummary){
+  try{
+    const selectedLabel=formatNorDate(new Date(dateISO+'T00:00:00'));
+    const lines=[];
+    lines.push(['Kundemottak rapport', selectedLabel]);
+    lines.push([]);
+    lines.push(['Sammendrag valgt dato']);
+    lines.push(['0800 - 1600 Kunde', String(totals.customer0800_1600||0)]);
+    lines.push(['1600 - 1800 Kunde', String(totals.customer1600_1800||0)]);
+    lines.push(['0800 - 1800 Montør / annet', String(totals.contractor0800_1800||0)]);
+    lines.push(['Totalt innom', String(totals.total||0)]);
+    lines.push([]);
+    lines.push(['Historikk total']);
+    lines.push(['Registrerte dager', String(historySummary.days||0)]);
+    lines.push(['0800 - 1600 Kunde', String(historySummary.customer0800_1600||0)]);
+    lines.push(['1600 - 1800 Kunde', String(historySummary.customer1600_1800||0)]);
+    lines.push(['0800 - 1800 Montør / annet', String(historySummary.contractor0800_1800||0)]);
+    lines.push(['Totalt innom', String(historySummary.total||0)]);
+    lines.push(['Snitt pr. dag', Number(historySummary.averagePerDay||0).toFixed(1)]);
+    lines.push([]);
+    lines.push(['Liste valgt dato']);
+    lines.push(['Bruker','0800 - 1600 Kunde','1600 - 1800 Kunde','0800 - 1800 Montør / annet','Totalt','Sist oppdatert']);
+    visibleRows.forEach(row=>{
+      lines.push([
+        row.user.name,
+        String(Number(row.entry.customer0800_1600||0)),
+        String(Number(row.entry.customer1600_1800||0)),
+        String(Number(row.entry.contractor0800_1800||0)),
+        String(Number(row.total||0)),
+        row.entry.updatedAt ? new Date(row.entry.updatedAt).toLocaleString('no-NO') : ''
+      ]);
+    });
+    lines.push(['Sum', String(totals.customer0800_1600||0), String(totals.customer1600_1800||0), String(totals.contractor0800_1800||0), String(totals.total||0), '']);
+    lines.push([]);
+    lines.push(['Historikk per dag']);
+    lines.push(['Dato','0800 - 1600 Kunde','1600 - 1800 Kunde','0800 - 1800 Montør / annet','Totalt','Antall brukere med registrering']);
+    historyRows.forEach(row=>{
+      lines.push([
+        formatNorDate(new Date(row.dateISO+'T00:00:00')),
+        String(row.customer0800_1600||0),
+        String(row.customer1600_1800||0),
+        String(row.contractor0800_1800||0),
+        String(row.total||0),
+        String(row.userCount||0)
+      ]);
+    });
+    const esc=(v)=>{const s=String(v??''); return /[";,\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+    const csv='\ufeff'+lines.map(r=>r.map(esc).join(';')).join('\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='kundemottak-'+dateISO+'.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(err){
+    console.error(err);
+    alert('Kunne ikke eksportere CSV for kundemottak.');
+  }
+}
+
+function renderReceptionPage(){
+  const view=document.getElementById('view-reception');
+  if(!view||!getCurrentUser())return;
+  const current=getCurrentUser();
+  const myEntry=getReceptionReportEntry(receptionReportDateISO,current.id);
+  const rows=getReceptionReportRows(receptionReportDateISO);
+  const visibleRows=receptionHideEmpty
+    ? rows.filter(row=>Number(row.entry.customer0800_1600||0)>0||Number(row.entry.customer1600_1800||0)>0||Number(row.entry.contractor0800_1800||0)>0)
+    : rows;
+  const historyRows=getReceptionHistoryRows();
+  const historySummary=buildReceptionHistorySummary(historyRows);
+  const totals=visibleRows.reduce((acc,row)=>{acc.customer0800_1600+=Number(row.entry.customer0800_1600||0);acc.customer1600_1800+=Number(row.entry.customer1600_1800||0);acc.contractor0800_1800+=Number(row.entry.contractor0800_1800||0);acc.total+=row.total;return acc},{customer0800_1600:0,customer1600_1800:0,contractor0800_1800:0,total:0});
+  const allTotals=rows.reduce((acc,row)=>{acc.customer0800_1600+=Number(row.entry.customer0800_1600||0);acc.customer1600_1800+=Number(row.entry.customer1600_1800||0);acc.contractor0800_1800+=Number(row.entry.contractor0800_1800||0);acc.total+=row.total;return acc},{customer0800_1600:0,customer1600_1800:0,contractor0800_1800:0,total:0});
+  const selectedDateObj=new Date(receptionReportDateISO+'T00:00:00');
+  const todayLabel=formatNorDate(selectedDateObj);
+  const topDayLabel=historySummary.topDay?formatNorDate(new Date(historySummary.topDay.dateISO+'T00:00:00')):'Ingen';
+  const historyHtml=historyRows.length
+    ? '<div class="card section"><h2>Historikk – Kundemottak</h2><div class="small-text">Viser alle registrerte dager med summer pr. dag.</div><div class="grid-wrap"><table><thead><tr><th>Dato</th><th>0800 - 1600 Kunde</th><th>1600 - 1800 Kunde</th><th>0800 - 1800 Montør / annet</th><th>Totalt</th><th>Antall brukere med registrering</th></tr></thead><tbody>'
+      + historyRows.map(row=>'<tr'+(row.dateISO===receptionReportDateISO?' style="background:rgba(34,197,94,.08);"':'')+'><td><strong>'+escapeHtml(formatNorDate(new Date(row.dateISO+'T00:00:00')))+'</strong></td><td>'+row.customer0800_1600+'</td><td>'+row.customer1600_1800+'</td><td>'+row.contractor0800_1800+'</td><td><strong>'+row.total+'</strong></td><td>'+row.userCount+'</td></tr>').join('')
+      + '</tbody></table></div></div>'
+    : '<div class="card section"><h2>Historikk – Kundemottak</h2><div class="report-empty">Ingen historikk registrert ennå.</div></div>';
+
+  view.innerHTML=''
+    +'<div class="card section"><h2>Rapportering – Kundemottak</h2><div class="small-text">Her kan hver bruker registrere antall besøkende for valgt dato. Listen under viser registreringene for alle brukere samme dag.</div></div>'
+    +'<div class="card toolbar">'
+    +  '<div class="field" style="grid-column:span 3;"><label>Dato</label><input type="date" id="receptionDate" value="'+escapeHtml(receptionReportDateISO)+'"></div>'
+    +  '<div class="field" style="grid-column:span 3;"><label>Bruker</label><input type="text" value="'+escapeHtml(current.name)+'" readonly></div>'
+    +  '<div class="field" style="grid-column:span 2;"><label>0800 - 1600 Kunde</label><input type="number" min="0" step="1" id="receptionCustomerDay" value="'+Number(myEntry.customer0800_1600||0)+'"></div>'
+    +  '<div class="field" style="grid-column:span 2;"><label>1600 - 1800 Kunde</label><input type="number" min="0" step="1" id="receptionCustomerEvening" value="'+Number(myEntry.customer1600_1800||0)+'"></div>'
+    +  '<div class="field" style="grid-column:span 2;"><label>0800 - 1800 Montør / annet</label><input type="number" min="0" step="1" id="receptionContractor" value="'+Number(myEntry.contractor0800_1800||0)+'"></div>'
+    +  '<div class="field" style="grid-column:span 12;"><label>&nbsp;</label><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;"><button id="saveReceptionBtn" class="good">Lagre registrering</button><button id="clearReceptionBtn" class="secondary">Nullstill mine tall</button><button id="exportReceptionCsvBtn" class="good">Eksporter CSV</button><label style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#0b1220;"><input type="checkbox" id="receptionHideEmpty" '+(receptionHideEmpty?'checked':'')+'> Skjul brukere uten registrering</label><span class="small-text" id="receptionSavedInfo">Valgt dato: '+escapeHtml(todayLabel)+'</span></div></div>'
+    +'</div>'
+    +'<div class="report-summary-cards">'
+    +  '<div class="card stat"><div class="label">0800 - 1600 Kunde</div><div class="value">'+totals.customer0800_1600+'</div></div>'
+    +  '<div class="card stat"><div class="label">1600 - 1800 Kunde</div><div class="value">'+totals.customer1600_1800+'</div></div>'
+    +  '<div class="card stat"><div class="label">0800 - 1800 Montør / annet</div><div class="value">'+totals.contractor0800_1800+'</div></div>'
+    +  '<div class="card stat"><div class="label">Totalt innom</div><div class="value">'+totals.total+'</div></div>'
+    +'</div>'
+    +'<div class="card section"><div class="small-text">'+(receptionHideEmpty?'Listen viser kun brukere som har registrert tall for denne datoen.':'Listen viser alle brukere, også de uten registrering.')+'</div></div>'
+    +'<div class="report-summary-cards">'
+    +  '<div class="card stat"><div class="label">Historikk: registrerte dager</div><div class="value">'+historySummary.days+'</div></div>'
+    +  '<div class="card stat"><div class="label">Historikk: totalt innom</div><div class="value">'+historySummary.total+'</div></div>'
+    +  '<div class="card stat"><div class="label">Historikk: snitt pr. dag</div><div class="value">'+historySummary.averagePerDay.toFixed(1)+'</div></div>'
+    +  '<div class="card stat"><div class="label">Historikk: toppdag</div><div class="value" style="font-size:18px;">'+escapeHtml(topDayLabel)+(historySummary.topDay?' ('+historySummary.topDay.total+')':'')+'</div></div>'
+    +'</div>'
+    +'<div class="card section"><h2>Sammendrag – Kundemottak</h2><div class="grid-wrap"><table><thead><tr><th>Periode</th><th>0800 - 1600 Kunde</th><th>1600 - 1800 Kunde</th><th>0800 - 1800 Montør / annet</th><th>Totalt</th></tr></thead><tbody>'
+    +'<tr><td><strong>Valgt dato ('+escapeHtml(todayLabel)+')</strong></td><td>'+allTotals.customer0800_1600+'</td><td>'+allTotals.customer1600_1800+'</td><td>'+allTotals.contractor0800_1800+'</td><td><strong>'+allTotals.total+'</strong></td></tr>'
+    +'<tr><td><strong>Hele historikken</strong></td><td>'+historySummary.customer0800_1600+'</td><td>'+historySummary.customer1600_1800+'</td><td>'+historySummary.contractor0800_1800+'</td><td><strong>'+historySummary.total+'</strong></td></tr>'
+    +'</tbody></table></div></div>'
+    +'<div class="card section"><h2>Liste for '+escapeHtml(todayLabel)+'</h2><div class="grid-wrap"><table><thead><tr><th>Bruker</th><th>0800 - 1600 Kunde</th><th>1600 - 1800 Kunde</th><th>0800 - 1800 Montør / annet</th><th>Totalt</th><th>Sist oppdatert</th></tr></thead><tbody>'
+    + (visibleRows.length?visibleRows.map(row=>'<tr><td>'+escapeHtml(row.user.name)+'</td><td>'+Number(row.entry.customer0800_1600||0)+'</td><td>'+Number(row.entry.customer1600_1800||0)+'</td><td>'+Number(row.entry.contractor0800_1800||0)+'</td><td><strong>'+row.total+'</strong></td><td>'+(row.entry.updatedAt?escapeHtml(new Date(row.entry.updatedAt).toLocaleString('no-NO')):'-')+'</td></tr>').join(''):'<tr><td colspan="6" class="small-text">Ingen registreringer å vise for valgt dato.</td></tr>')
+    + '<tr><td><strong>Sum</strong></td><td><strong>'+totals.customer0800_1600+'</strong></td><td><strong>'+totals.customer1600_1800+'</strong></td><td><strong>'+totals.contractor0800_1800+'</strong></td><td><strong>'+totals.total+'</strong></td><td></td></tr>'
+    +'</tbody></table></div></div>'
+    + historyHtml;
+
+  const dateInput=document.getElementById('receptionDate');
+  const saveBtn=document.getElementById('saveReceptionBtn');
+  const clearBtn=document.getElementById('clearReceptionBtn');
+  const exportBtn=document.getElementById('exportReceptionCsvBtn');
+  const hideEmptyToggle=document.getElementById('receptionHideEmpty');
+  if(dateInput) dateInput.onchange=()=>{receptionReportDateISO=String(dateInput.value||formatDateISO(new Date()));render()};
+  if(hideEmptyToggle) hideEmptyToggle.onchange=()=>{receptionHideEmpty=!!hideEmptyToggle.checked;render()};
+  if(exportBtn) exportBtn.onclick=()=>exportReceptionCsv(receptionReportDateISO, visibleRows, allTotals, historyRows, historySummary);
+  if(saveBtn) saveBtn.onclick=()=>{
+    const clamp=(v)=>Math.max(0,Math.floor(Number(v||0)||0));
+    const customerDay=clamp(document.getElementById('receptionCustomerDay')?document.getElementById('receptionCustomerDay').value:0);
+    const customerEvening=clamp(document.getElementById('receptionCustomerEvening')?document.getElementById('receptionCustomerEvening').value:0);
+    const contractor=clamp(document.getElementById('receptionContractor')?document.getElementById('receptionContractor').value:0);
+    const entry=getReceptionReportEntry(receptionReportDateISO,current.id);
+    entry.customer0800_1600=customerDay;
+    entry.customer1600_1800=customerEvening;
+    entry.contractor0800_1800=contractor;
+    entry.updatedAt=new Date().toISOString();
+    saveData(true);
+    render();
+    setTimeout(()=>{const el=document.getElementById('receptionSavedInfo');if(el)el.textContent='Lagret for '+formatNorDate(new Date(receptionReportDateISO+'T00:00:00'))+' ✓';},50);
+  };
+  if(clearBtn) clearBtn.onclick=()=>{
+    const entry=getReceptionReportEntry(receptionReportDateISO,current.id);
+    entry.customer0800_1600=0;
+    entry.customer1600_1800=0;
+    entry.contractor0800_1800=0;
+    entry.updatedAt=new Date().toISOString();
+    saveData(true);
+    render();
+    setTimeout(()=>{const el=document.getElementById('receptionSavedInfo');if(el)el.textContent='Nullstilt for '+formatNorDate(new Date(receptionReportDateISO+'T00:00:00'))+' ✓';},50);
+  };
+}
+
+function renderStatusReport(){
+  const view=document.getElementById('view-report');
+  if(!view||!isAdmin())return;
+  const report=buildStatusReportData();
+  const periodLabel=displayMode==='week'?'uke':displayMode==='month'?'måned':'år';
+  const uniqueStatuses=report.statuses.length;
+  const topStatus=report.statuses[0];
+  const employeesWithoutAny=report.employeeRows.filter(row=>!row.total).length;
+  const total=report.totalAssigned||0;
+  const summaryCards='<div class="report-summary-cards">'
+    +'<div class="card stat"><div class="label">Registrerte statuslinjer</div><div class="value">'+report.totalAssigned+'</div></div>'
+    +'<div class="card stat"><div class="label">Ulike statuser</div><div class="value">'+uniqueStatuses+'</div></div>'
+    +'<div class="card stat"><div class="label">Mest brukt status</div><div class="value" style="font-size:18px;">'+escapeHtml(topStatus?topStatus.name:'Ingen')+'</div></div>'
+    +'<div class="card stat"><div class="label">Ansatte uten registrering</div><div class="value">'+employeesWithoutAny+'</div></div>'
+    +'</div>';
+  const statusCards=report.statuses.length ? '<div class="report-cards">'+report.statuses.map(item=>{const pct=total?((item.count/total)*100):0;return '<div class="report-card"><div class="top"><div>'+buildStatusChip(item.name,item.color)+'</div><div class="count">'+item.count+'</div></div><div class="meta">'+item.employees.size+' ansatte · '+item.dates.size+' dager · '+pct.toFixed(1)+' %</div><div style="height:10px"></div><div class="report-list">'+Array.from(item.employees).sort((a,b)=>a.localeCompare(b,'no')).map(name=>'<span class="report-pill">'+escapeHtml(name)+'</span>').join('')+'</div></div>';}).join('')+'</div>' : '<div class="report-empty">Ingen statuser registrert i valgt '+periodLabel+'.</div>';
+  const columns=report.statuses.map(s=>s.name);
+  const tableHead='<thead><tr><th class="employee-col">Ansatt</th>'+columns.map(name=>'<th>'+escapeHtml(name)+'</th>').join('')+'<th class="total-col">Totalt</th></tr></thead>';
+  const tableBody='<tbody>'+report.employeeRows.map(row=>'<tr><td class="employee-col"><div class="employee-name">'+escapeHtml(row.employee.name)+'</div><div class="small-text">'+escapeHtml(row.employee.type||'')+'</div></td>'+columns.map(name=>'<td>'+(row.statuses[name]||0)+'</td>').join('')+'<td class="total-col">'+row.total+'</td></tr>').join('')+'</tbody>';
+  const percentList=report.statuses.length ? report.statuses.map(item=>{const pct=total?((item.count/total)*100):0;return '<div class="percent-line"><div class="label">'+escapeHtml(item.name)+'</div><div class="bar"><div class="fill" style="width:'+pct.toFixed(1)+'%;background:'+escapeHtml(item.color)+';"></div></div><div class="value">'+pct.toFixed(1)+' %</div></div>';}).join('') : '<div class="report-empty">Ingen data å vise.</div>';
+  const todayISO=formatDateISO(new Date());
+  const todayStatuses=report.employees.map(emp=>{const entry=getScheduleEntry(todayISO,emp.id);const text=entryDisplayText(entry).trim();return {employee:emp,text:text,entry:entry};}).sort((a,b)=>a.employee.name.localeCompare(b.employee.name,'no'));
+  const todayHtml='<div class="today-status-grid">'+todayStatuses.map(item=>'<div class="today-status-box"><div class="name">'+escapeHtml(item.employee.name)+'</div>'+(item.text?buildStatusChip(item.text,getStatusColor(item.entry.status)):'<span class="report-empty">Ingen status registrert</span>')+'<div class="sub">Status i dag ('+escapeHtml(formatNorDate(new Date(todayISO+'T00:00:00')))+')</div></div>').join('')+'</div>';
+
+  const reportFilterToolbar=''
+    +'<div class="card toolbar" id="reportToolbar">'
+    +  '<div class="field" style="grid-column:span 2;"><label>Filtertype</label><select id="reportDisplayMode"><option value="week">Uke</option><option value="month">Måned</option><option value="year">År</option></select></div>'
+    +  '<div class="field" id="reportWeekStartWrap" style="grid-column:span 3;"><label>Uke starter</label><input type="date" id="reportWeekStart"></div>'
+    +  '<div class="field" id="reportMonthWrap" style="grid-column:span 2;"><label>Måned</label><input type="month" id="reportMonthPicker"></div>'
+    +  '<div class="field" id="reportWeekNoWrap" style="grid-column:span 1;"><label>Uke</label><input type="number" id="reportWeekNo" min="1" max="53"></div>'
+    +  '<div class="field" id="reportYearWrap" style="grid-column:span 2;"><label>År</label><input type="number" id="reportYearPicker" min="2024" max="2035"></div>'
+    +  '<div class="field" style="grid-column:span 1;"><label>&nbsp;</label><button id="reportPrevPeriod" class="secondary">←</button></div>'
+    +  '<div class="field" style="grid-column:span 1;"><label>&nbsp;</label><button id="reportNextPeriod" class="secondary">→</button></div>'
+    +  '<div class="field" style="grid-column:span 2;"><label>&nbsp;</label><button id="exportStatusCsvBtn" class="good">Eksporter CSV</button></div>'
+    +'</div>';
+
+  view.innerHTML=''
+    +'<div class="card section"><h2>Statusrapport</h2><div class="small-text">Samleside for statusene på ansatte i valgt '+periodLabel+'. Rapporten oppdateres automatisk når du endrer filter til uke, måned eller år.</div></div>'
+    +reportFilterToolbar
+    +summaryCards
+    +'<div class="report-grid">'
+    +  '<div class="card section"><h2>Fordeling per status</h2>'+statusCards+'<div class="report-note">Tallet viser hvor mange registreringer som finnes i valgt '+periodLabel+'. En ansatt kan derfor telles flere ganger på ulike dager.</div></div>'
+    +  '<div class="card section"><h2>Prosenter</h2>'+percentList+'</div>'
+    +'</div>'
+    +'<div class="report-grid">'
+    +  '<div class="card section"><h2>Grafer</h2><div class="chart-wrap"><canvas id="statusPieChart"></canvas></div></div>'
+    +  '<div class="card section"><h2>Antall per status</h2><div class="chart-wrap"><canvas id="statusBarChart"></canvas></div></div>'
+    +'</div>'
+    +'<div class="card section"><h2>Status per ansatt</h2><div class="grid-wrap report-table-wrap"><table>'+tableHead+tableBody+'</table></div></div>'
+    +'<div class="card section"><h2>Status i dag</h2>'+todayHtml+'</div>';
+
+  const modeSel=document.getElementById('reportDisplayMode');
+  const weekStartInput=document.getElementById('reportWeekStart');
+  const monthInput=document.getElementById('reportMonthPicker');
+  const weekNoInput=document.getElementById('reportWeekNo');
+  const yearInput=document.getElementById('reportYearPicker');
+  const weekStartWrap=document.getElementById('reportWeekStartWrap');
+  const monthWrap=document.getElementById('reportMonthWrap');
+  const weekNoWrap=document.getElementById('reportWeekNoWrap');
+  const yearWrap=document.getElementById('reportYearWrap');
+
+  if(modeSel) modeSel.value=displayMode;
+  if(weekStartInput) weekStartInput.value=formatDateISO(getMonday(currentAnchorDate));
+  if(monthInput) monthInput.value=formatMonthValue(currentAnchorDate);
+  if(weekNoInput) weekNoInput.value=getWeekNumber(getMonday(currentAnchorDate));
+  if(yearInput) yearInput.value=String(currentAnchorDate.getFullYear());
+
+  const syncReportFilterVisibility=()=>{
+    if(weekStartWrap) weekStartWrap.classList.toggle('hidden',displayMode!=='week');
+    if(weekNoWrap) weekNoWrap.classList.toggle('hidden',displayMode!=='week');
+    if(monthWrap) monthWrap.classList.toggle('hidden',displayMode!=='month');
+    if(yearWrap) yearWrap.classList.toggle('hidden',displayMode!=='year');
+  };
+  syncReportFilterVisibility();
+
+  if(modeSel) modeSel.onchange=()=>{displayMode=modeSel.value;render()};
+  if(weekStartInput) weekStartInput.onchange=()=>{currentAnchorDate=getMonday(parseDateInputLocal(weekStartInput.value));displayMode='week';render()};
+  if(monthInput) monthInput.onchange=()=>{const p=String(monthInput.value||'').split('-');if(p.length===2){currentAnchorDate=new Date(Number(p[0]),Number(p[1])-1,1);displayMode='month';render()}};
+  if(weekNoInput) weekNoInput.onchange=()=>{const year=currentAnchorDate.getFullYear(),week=Math.max(1,Math.min(53,Number(weekNoInput.value||1)));currentAnchorDate=getMonday(new Date(year,0,1+(week-1)*7));displayMode='week';render()};
+  if(yearInput) yearInput.onchange=()=>{const year=Math.max(2024,Math.min(2035,Number(yearInput.value||new Date().getFullYear())));currentAnchorDate=new Date(year,0,1);displayMode='year';render()};
+
+  const prevBtn=document.getElementById('reportPrevPeriod');
+  const nextBtn=document.getElementById('reportNextPeriod');
+  const exportBtn=document.getElementById('exportStatusCsvBtn');
+  if(prevBtn) prevBtn.onclick=()=>{if(displayMode==='week')currentAnchorDate=addDays(currentAnchorDate,-7);else if(displayMode==='month')currentAnchorDate=new Date(currentAnchorDate.getFullYear(),currentAnchorDate.getMonth()-1,1);else currentAnchorDate=new Date(currentAnchorDate.getFullYear()-1,0,1);render()};
+  if(nextBtn) nextBtn.onclick=()=>{if(displayMode==='week')currentAnchorDate=addDays(currentAnchorDate,7);else if(displayMode==='month')currentAnchorDate=new Date(currentAnchorDate.getFullYear(),currentAnchorDate.getMonth()+1,1);else currentAnchorDate=new Date(currentAnchorDate.getFullYear()+1,0,1);render()};
+  if(exportBtn) exportBtn.onclick=()=>exportStatusReportCsv(report);
+
+  renderStatusReportCharts(report);
+}
 
 function renderDashboard(){const user=getCurrentUser(), emp=getEmployeeForCurrentUser(), dates=getVisibleDates();const mine=emp?dates.map(d=>({date:d,entry:getScheduleEntry(formatDateISO(d),emp.id)})).filter(x=>entryDisplayText(x.entry)):[];const pending=data.swapRequests.filter(r=>r.toUserId===user.id&&r.status==='pending').length;const mineReq=data.swapRequests.filter(r=>r.fromUserId===user.id).length;const specials=dates.filter(isSpecialDay).slice(0,12).map(d=>{const a=getEmployeeById(data.specialAssignments[formatDateISO(d)]||'');return '<div class="notice"><strong>'+escapeHtml(dayName(d)+' '+formatNorDate(d))+'</strong><div class="small-text">'+(a?'Ansvarlig: <strong>'+escapeHtml(a.name)+'</strong>':'Ingen ansvarlig valgt')+'</div></div>'}).join('');const todayISO=formatDateISO(new Date());const todayDate=new Date(todayISO+'T00:00:00');const todaysShifts=data.employees.map(emp=>({employee:emp,entry:getScheduleEntry(todayISO,emp.id)})).filter(x=>entryDisplayText(x.entry));const todayComment=data.dayComments[todayISO]||'';const techToday=technicalDutyNameForDateISO(todayISO);document.getElementById('view-dashboard').innerHTML='<div class="stats"><div class="card stat"><div class="label">Mine synlige vakter</div><div class="value">'+mine.length+'</div></div><div class="card stat"><div class="label">Mine forespørsler</div><div class="value">'+mineReq+'</div></div><div class="card stat"><div class="label">Venter på mitt svar</div><div class="value">'+pending+'</div></div><div class="card stat"><div class="label">Visning</div><div class="value">'+(displayMode==='week'?'Uke':displayMode==='month'?'Måned':'År')+'</div></div></div><div class="grid-3"><div class="card section"><h2>Dagen i dag</h2><div class="notice"><strong>'+escapeHtml(dayName(todayDate)+' '+formatNorDate(todayDate))+'</strong><div class="small-text">Oversikt over hvem som er på jobb i dag og dagens kommentar.</div></div><div style="height:10px"></div>'+(techToday?'<div class="tech-duty-box">Teknisk vakt denne uken:<br><strong>'+escapeHtml(techToday)+'</strong></div><div style="height:10px"></div>':'')+(todaysShifts.length?'<div class="today-list">'+todaysShifts.map(x=>'<div class="today-item"><div class="today-name">'+escapeHtml(x.employee.name)+'</div><div class="today-time">'+escapeHtml(entryDisplayText(x.entry))+'</div></div>').join('')+'</div>':'<div class="small-text">Ingen registrert på jobb i dag.</div>')+'<div style="height:12px"></div><div class="notice"><strong>Dagskommentar</strong><div class="day-comment-box">'+escapeHtml(todayComment||'Ingen kommentar for i dag.')+'</div></div></div><div class="card section"><h2>Mine vakter i valgt visning</h2>'+(emp?'<div class="item-list">'+mine.slice(0,15).map(x=>'<div class="notice"><strong>'+escapeHtml(dayName(x.date)+' '+formatNorDate(x.date))+'</strong><div>'+buildStatusChip(entryDisplayText(x.entry),getStatusColor(x.entry.status))+'</div><div class="small-text" style="margin-top:8px;">Dagskommentar: '+escapeHtml(data.dayComments[formatDateISO(x.date)]||'')+'</div></div>').join('')+'</div>':'<div class="small-text">Brukeren er ikke koblet til en ansatt.</div>')+'</div><div class="card section"><h2>Helg / røde dager</h2>'+(specials||'<div class="small-text">Ingen spesialdager i valgt visning.</div>')+'</div></div>'}
 
@@ -497,5 +931,6 @@ function bindEvents(){els.loginBtn.onclick=login;if(els.bootstrapFirstAdminBtn)e
 function render(){ensureDataShape();if(currentMainTab==='admin'&&!isAdmin())currentMainTab='dashboard';maybeShowBootstrapOption();renderScreen()}
 ensureDataShape();syncAnchorsToToday();bindEvents();render();window.addEventListener('resize',()=>{const widthChanged=(mobileRenderWidth<=900)!==(window.innerWidth<=900);mobileRenderWidth=window.innerWidth;if(widthChanged&&currentMainTab==='plan')renderTable()});window.addEventListener('focus',()=>refreshToCurrentDateIfNeeded(false));document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshToCurrentDateIfNeeded(false)});initFirebaseLive().catch(err=>console.error("Firebase startfeil:",err));
 </script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </body>
 </html>
